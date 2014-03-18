@@ -81,6 +81,10 @@ class Choice < ActiveRecord::Base
     self.creator_id != self.question.creator_id
   end
 
+  def creator_identifier
+     self.creator.identifier
+  end
+
   def compute_bt_score(btprobs = nil)
       if btprobs.nil?
 	      btprobs = self.question.bradley_terry_probs

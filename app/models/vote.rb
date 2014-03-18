@@ -19,7 +19,7 @@ class Vote < ActiveRecord::Base
   named_scope :active, :include => :choice, :conditions => { 'choices.active' => true }
   named_scope :active_loser, :include => :loser_choice, :conditions => { 'choices.active' => true }
 
-  default_scope :conditions => "#{table_name}.valid_record = 1"
+  default_scope :conditions => {"#{table_name}.valid_record"  => true }
 
   serialize :tracking
 
