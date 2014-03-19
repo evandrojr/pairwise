@@ -7,27 +7,27 @@ class ChoicesController < InheritedResources::Base
   before_filter :authenticate
   
   def index
-    if params[:limit]
-      @question = current_user.questions.find(params[:question_id])
+    order = 'score DESC'
+    order = params[:order].map{|a| "#{a.first} #{a.second}"}.join(',') unless params[:order].blank?
 
-      find_options = {:conditions => {:question_id => @question.id},
-		      :limit => params[:limit].to_i, 
-		      :order => 'score DESC'
-		      }
-      
-      find_options[:conditions].merge!(:active => true) unless params[:include_inactive]
-      find_options.merge!(:offset => params[:offset]) if params[:offset]
+    conditions = []
+    conditions << ['lower(data) like ?', params[:filter][:data].downcase] if params[:filter] && !params[:filter][:data].blank?
 
-      @choices = Choice.find(:all, find_options)
+    @question = current_user.questions.find(params[:question_id])
 
-    else
-      @question = current_user.questions.find(params[:question_id], :include => :choices) #eagerloads ALL choices
-      unless params[:include_inactive]
-        @choices = @question.choices(true).active.find(:all)
-      else
-        @choices = @question.choices.find(:all)
-      end
-    end
+    find_options = {:conditions => {:question_id => @question.id},
+        :order => order
+        }
+
+    conditions << ["question_id = ?", @question.id]
+    conditions << ['active = ?', true] unless params[:include_inactive]
+    find_options[:conditions] = [conditions.map{|c| c[0] }.join(" AND "), *conditions.map{|c| c[1..-1] }.flatten]
+
+    find_options.merge!(:limit => params[:limit].to_i) if params[:limit]
+    find_options.merge!(:offset => params[:offset]) if params[:offset]
+
+    @choices = Choice.find(:all, find_options)
+
     index! do |format|
       format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => :user_created)}
     end
