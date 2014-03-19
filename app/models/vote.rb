@@ -1,3 +1,4 @@
+require 'will_paginate'
 class Vote < ActiveRecord::Base
 #  belongs_to :voteable, :polymorphic => true, :counter_cache => true
   validates_presence_of :question
@@ -19,7 +20,7 @@ class Vote < ActiveRecord::Base
   named_scope :active, :include => :choice, :conditions => { 'choices.active' => true }
   named_scope :active_loser, :include => :loser_choice, :conditions => { 'choices.active' => true }
 
-  default_scope :conditions => {"#{table_name}.valid_record"  => true }
+  default_scope :conditions => {"valid_record"  => true }
 
   serialize :tracking
 
