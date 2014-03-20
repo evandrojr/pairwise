@@ -11,27 +11,49 @@ class ChoicesController < InheritedResources::Base
       @question = current_user.questions.find(params[:question_id])
 
       find_options = {:conditions => {:question_id => @question.id},
-		      :limit => params[:limit].to_i, 
-		      :order => 'score DESC'
-		      }
+        :limit => params[:limit].to_i, 
+        :order => 'score DESC'
+      }
       
       find_options[:conditions].merge!(:active => true) unless params[:include_inactive]
+
+      if(params[:ignore_flagged])
+        find_options.merge({ :include => :flags })
+        find_options[:conditions].merge!({:flags => {:id => nil}})
+      end
+
       find_options.merge!(:offset => params[:offset]) if params[:offset]
 
       @choices = Choice.find(:all, find_options)
 
     else
-      @question = current_user.questions.find(params[:question_id], :include => :choices) #eagerloads ALL choices
-      unless params[:include_inactive]
-        @choices = @question.choices(true).active.find(:all)
+      @question = current_user.questions.find(params[:question_id]) #eagerloads ALL choices
+
+      if params[:inactive_ignore_flagged]
+        @choices = @question.choices(true).inactive_ignore_flagged.find(:all)
+      elsif params[:inactive]
+        @choices = @question.choices(true).inactive.find(:all)
       else
-        @choices = @question.choices.find(:all)
+        unless params[:include_inactive]
+          @choices = @question.choices(true).active.find(:all)
+        else
+          @choices = @question.choices.find(:all)
+        end
       end
     end
     index! do |format|
-      format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => :user_created)}
+      format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => [:user_created, :creator_identifier])}
     end
 
+  end
+
+  # method added to provide more choices search options and
+  # provide better tool for manage the suggestions users provided
+  def search
+      @choices = Choice.search(params)
+      index! do |format|
+        format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => [:user_created, :creator_identifier])}
+      end
   end
   
   def votes

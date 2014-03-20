@@ -22,6 +22,7 @@ class Choice < ActiveRecord::Base
   has_many :skips_on_the_right, :through => :prompts_on_the_right, :source => :skips
   named_scope :active, :conditions => { :active => true }
   named_scope :inactive, :conditions => { :active => false}
+  named_scope :inactive_ignore_flagged, :include => :flags, :conditions => {:active => false, :flags => {:id => nil}}
   named_scope :not_created_by, lambda { |creator_id|
     { :conditions => ["creator_id <> ?", creator_id] }
   }
@@ -81,6 +82,10 @@ class Choice < ActiveRecord::Base
     self.creator_id != self.question.creator_id
   end
 
+  def creator_identifier
+     self.creator.identifier
+  end
+
   def compute_bt_score(btprobs = nil)
       if btprobs.nil?
 	      btprobs = self.question.bradley_terry_probs
@@ -109,6 +114,18 @@ class Choice < ActiveRecord::Base
   def deactivate!
     (self.active = false)
     self.save!
+  end
+
+  def self.search(params)
+    question = current_user.questions.find(params[:question_id])
+    
+    if params[:limit]
+    end
+
+    if params[:scope] #:active, :inactive, :ignore_flagged
+    end
+
+    #if params[:]
   end
 
   protected

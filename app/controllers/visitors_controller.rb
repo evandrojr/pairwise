@@ -1,11 +1,16 @@
+require 'will_paginate/array'
+
 class VisitorsController < InheritedResources::Base
         respond_to :xml, :json
 	before_filter :authenticate
   actions :index
 
   def index
-    cond = params[:question_id] ? "question_id = #{params[:question_id]}" : nil
-
+    cond = nil
+    if params[:question_id]
+      Question.find(params[:question_id])
+      cond = "question_id = #{params[:question_id]}"
+    end
     counts = {}
     if params[:votes_count]
       counts[:votes_count] = Vote.count(:conditions => cond, :group => "voter_id")
@@ -41,7 +46,15 @@ class VisitorsController < InheritedResources::Base
     counts.each_pair do |attr,values|
       @visitors.each{ |v| v[attr] = values[v.id] || 0 }
     end
+
+    if(params[:page])
+       @visitors = WillPaginate::Collection.create(params[:page], params[:page_size] || 10, @visitors.length) do |pager|
+        result = @visitors.slice(pager.offset, pager.per_page)
+        result ? pager.replace(result) : nil
+      end
+    end
       
+
     index!
   end
 
