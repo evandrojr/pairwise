@@ -5,45 +5,93 @@ class ChoicesController < InheritedResources::Base
   has_scope :active, :type => :boolean, :only => :index
 
   before_filter :authenticate
-  
+
   def index
-    order = 'score DESC'
-    order = params[:order].map{|a| "#{a.first} #{a.second}"}.join(',') unless params[:order].blank?
+    if params[:limit]
+      @question = current_user.questions.find(params[:question_id])
 
-    conditions = []
-    conditions << ['lower(data) like ?', params[:filter][:data].downcase] if params[:filter] && !params[:filter][:data].blank?
+      find_options = {:conditions => {:question_id => @question.id},
+        :limit => params[:limit].to_i,
+        :order => 'score DESC'
+      }
 
-    @question = current_user.questions.find(params[:question_id])
+      find_options[:conditions].merge!(:active => true) unless params[:include_inactive]
 
-    find_options = {:conditions => {:question_id => @question.id},
-        :order => order
-        }
+      find_options[:include] = [:creator]
 
-    conditions << ["question_id = ?", @question.id]
-    conditions << ['active = ?', true] unless params[:include_inactive]
-    find_options[:conditions] = [conditions.map{|c| c[0] }.join(" AND "), *conditions.map{|c| c[1..-1] }.flatten]
+      if(params[:ignore_flagged])
+        find_options[:include] << :flags
+        find_options[:conditions].merge!({:flags => {:id => nil}})
+      end
 
-    find_options.merge!(:limit => params[:limit].to_i) if params[:limit]
-    find_options.merge!(:offset => params[:offset]) if params[:offset]
+      find_options.merge!(:offset => params[:offset]) if params[:offset]
 
-    @choices = Choice.find(:all, find_options)
+      @choices = Choice.find(:all, find_options)
+
+    else
+      @question = current_user.questions.find(params[:question_id])
+
+      sort_by = "score"
+      sort_order = "DESC"
+
+      if !params[:order].blank?
+
+        if params[:order][:sort_order].downcase == "asc" or params[:order][:sort_order].downcase == "desc"
+          sort_order = params[:order][:sort_order].downcase
+        end
+
+        case params[:order][:sort_by].downcase
+          when "name"
+            sort_by = "choices.data"
+          when "date"
+            sort_by = "choices.created_at"
+          when "author"
+            sort_by = "visitors.identifier"
+          else
+            sort_by = "score"
+        end
+
+      end
+
+      order = "#{sort_by} #{sort_order}"
+
+      find_options = { :include  => [:creator] }
+      find_options.merge!({ :order => order })
+
+      if (!params[:reproved].blank?)
+        @choices = @question.choices(true).reproved.find(:all, find_options)
+      else
+        if params[:inactive_ignore_flagged]
+          @choices = @question.choices(true).inactive_ignore_flagged.find(:all, find_options)
+        elsif params[:inactive]
+          @choices = @question.choices(true).inactive.find(:all, find_options)
+        else
+          unless params[:include_inactive]
+            @choices = @question.choices(true).active.find(:all, find_options)
+          else
+            @choices = @question.choices.find(:all, find_options)
+          end
+        end
+      end
+
+    end
 
     index! do |format|
-      format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => :user_created)}
+      format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => [:user_created, :creator_identifier])}
     end
 
   end
-  
+
   def votes
     @choice = Choice.find(params[:id])
     render :xml => @choice.votes.to_xml
   end
 
   def create
-    
+
     visitor_identifier = params[:choice].delete(:visitor_identifier)
 
-    visitor = current_user.default_visitor 
+    visitor = current_user.default_visitor
     if visitor_identifier
       visitor = current_user.visitors.find_or_create_by_identifier(visitor_identifier)
     end
@@ -56,7 +104,7 @@ class ChoicesController < InheritedResources::Base
     @choice = Choice.new(params[:choice])
     create!
   end
-  
+
   def flag
     @question = current_user.questions.find(params[:question_id])
     @choice = @question.choices.find(params[:id])
@@ -65,7 +113,7 @@ class ChoicesController < InheritedResources::Base
 
     if explanation = params[:explanation] 
 	    flag_params.merge!({:explanation => explanation})
-		   
+
     end
     if visitor_identifier = params[:visitor_identifier]
             visitor = current_user.visitors.find_or_create_by_identifier(visitor_identifier)
@@ -110,4 +158,4 @@ class ChoicesController < InheritedResources::Base
 
 
 end
-  
+
