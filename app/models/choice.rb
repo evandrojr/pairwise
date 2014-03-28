@@ -23,6 +23,7 @@ class Choice < ActiveRecord::Base
   named_scope :active, :conditions => { :active => true }
   named_scope :inactive, :conditions => { :active => false}
   named_scope :inactive_ignore_flagged, :include => :flags, :conditions => {:active => false, :flags => {:id => nil}}
+  named_scope :reproved, :joins => :flags
   named_scope :not_created_by, lambda { |creator_id|
     { :conditions => ["creator_id <> ?", creator_id] }
   }
@@ -38,6 +39,10 @@ class Choice < ActiveRecord::Base
     unless part_of_batch_create
       self.question.update_attribute(:inactive_choices_count, self.question.choices.inactive.length)
     end
+  end
+
+  def reproved
+    self.flags.any?{|a| a.choice_id == self.id}
   end
 
   # if changing a choice to active, we want to regenerate prompts
@@ -83,7 +88,7 @@ class Choice < ActiveRecord::Base
   end
 
   def creator_identifier
-     self.creator.identifier
+    self.creator.identifier
   end
 
   def compute_bt_score(btprobs = nil)
