@@ -41,6 +41,10 @@ class Choice < ActiveRecord::Base
     end
   end
 
+  def reproved
+    self.flags.any?{|a| a.choice_id == self.id}
+  end
+
   # if changing a choice to active, we want to regenerate prompts
   def update_prompt_queue
     unless part_of_batch_create

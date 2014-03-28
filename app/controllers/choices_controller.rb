@@ -41,11 +41,11 @@ class ChoicesController < InheritedResources::Base
         end
 
         case params[:order][:sort_by].downcase
-          when "name"
+          when "data"
             sort_by = "choices.data"
-          when "date"
+          when "created_date"
             sort_by = "choices.created_at"
-          when "author"
+          when "visitor_identifier"
             sort_by = "visitors.identifier"
           else
             sort_by = "score"
@@ -55,8 +55,17 @@ class ChoicesController < InheritedResources::Base
 
       order = "#{sort_by} #{sort_order}"
 
-      find_options = { :include  => [:creator] }
-      find_options.merge!({ :order => order })
+      find_options = {
+        :include  => [:creator],
+        :conditions => {},
+        :order => order
+      }
+
+      if params[:filter] && !params[:filter][:data].blank?
+        conditions = []
+        conditions << ['lower(data) like ?', "%#{params[:filter][:data].downcase}%"]
+        find_options[:conditions] = [conditions.map{|c| c[0] }.join(" AND "), *conditions.map{|c| c[1..-1] }.flatten]
+      end
 
       if (!params[:reproved].blank?)
         @choices = @question.choices(true).reproved.find(:all, find_options)
@@ -77,7 +86,7 @@ class ChoicesController < InheritedResources::Base
     end
 
     index! do |format|
-      format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => [:user_created, :creator_identifier])}
+      format.xml { render :xml => @choices.to_xml(:only => [ :data, :score, :id, :active, :created_at, :wins, :losses], :methods => [:user_created, :creator_identifier, :reproved])}
     end
 
   end
@@ -111,9 +120,8 @@ class ChoicesController < InheritedResources::Base
 
     flag_params = {:choice_id => params[:id].to_i, :question_id => params[:question_id].to_i, :site_id => current_user.id}
 
-    if explanation = params[:explanation] 
+    if explanation = params[:explanation]
 	    flag_params.merge!({:explanation => explanation})
-
     end
     if visitor_identifier = params[:visitor_identifier]
             visitor = current_user.visitors.find_or_create_by_identifier(visitor_identifier)
@@ -155,7 +163,6 @@ class ChoicesController < InheritedResources::Base
       format.json { render :json => @choice.to_json(response_options) }
     end
   end
-
 
 end
 
